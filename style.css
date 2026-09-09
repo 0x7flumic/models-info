@@ -1,0 +1,422 @@
+/* --- Badges Container & Top-Left Badges --- */
+.models-info-badges-container {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    z-index: 50;
+    pointer-events: none;
+}
+
+.models-info-base-badge {
+    position: relative;
+    top: 0;
+    left: 0;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #ffffff;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    pointer-events: none;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    transition: all 0.2s ease;
+}
+
+.models-info-fav-badge {
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #facc15;
+    background: rgba(15, 23, 42, 0.85);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 0 8px rgba(234, 179, 8, 0.4);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(234, 179, 8, 0.6);
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.1;
+    text-shadow: 0 0 4px rgba(234, 179, 8, 0.8);
+}
+
+/* --- Direct Action Buttons Row --- */
+.models-info-actions-row {
+    position: absolute;
+    bottom: max(68px, calc(var(--card-banner-height, 68px) + 6px)); /* Responsive position above bottom banner */
+    left: 50%;
+    transform: translate(-50%, 0) scale(0.9); /* Center aligned and scaled down initially */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    max-width: 92%;
+    gap: 6px;
+    padding: 4px 8px;
+    background: rgba(15, 23, 42, 0.65) !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 80;
+    opacity: 0; /* hidden by default */
+    visibility: hidden;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.25s;
+}
+
+/* Show actions row with hover scale and lift micro-animation */
+.card:hover .models-info-actions-row {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, -4px) scale(1);
+}
+
+/* --- Card Action Button Styling --- */
+.models-info-card-btn {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    color: #ffffff !important;
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 50% !important;
+    cursor: pointer !important;
+    font-size: 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    transition: all 0.2s ease !important;
+}
+
+.models-info-card-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.25) !important;
+    border-color: rgba(255, 255, 255, 0.4) !important;
+    transform: scale(1.1);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.2) !important;
+}
+
+.models-info-card-btn:disabled {
+    opacity: 0.3 !important;
+    cursor: not-allowed !important;
+}
+
+.models-info-card-btn.models-info-fav-card-btn.active {
+    color: #facc15 !important;
+    border-color: rgba(234, 179, 8, 0.6) !important;
+    background: rgba(234, 179, 8, 0.25) !important;
+    box-shadow: 0 0 8px rgba(234, 179, 8, 0.4) !important;
+}
+
+
+
+/* --- Model Title Container --- */
+.card.models-info-custom-card .actions {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important; /* Left align everything */
+    text-align: left !important;
+    padding: 8px 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    justify-content: flex-end !important;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.6) 60%, transparent 100%) !important;
+}
+
+.card.models-info-custom-card .actions .name {
+    text-align: left !important;
+    width: 100% !important;
+    display: block !important;
+    font-weight: 700 !important;
+    font-size: 16px !important; /* Increased font size for model name */
+    white-space: nowrap !important; /* Force single line */
+    overflow: hidden !important; /* Hide overflow name content */
+    text-overflow: ellipsis !important; /* Concatenate with ellipsis (...) */
+    margin: 0 !important;
+}
+
+/* --- Bordered Version Box Badge --- */
+.models-info-version-badge {
+    display: inline-block; /* Shrink-wrap to version text width */
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: rgba(255, 255, 255, 0.9) !important;
+    font-size: 12px; /* Increased font size */
+    font-weight: 600;
+    padding: 3px 8px; /* Internal padding */
+    border-radius: 4px;
+    margin-top: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    box-sizing: border-box;
+    text-align: left !important;
+}
+
+/* --- Header Toolbar Container --- */
+.models-info-toolbar {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 12px;
+}
+
+/* --- Base Model Dropdown Select --- */
+.models-info-filter {
+    background: var(--input-background-fill, #1e293b) !important;
+    border: 1px solid var(--border-color-primary, #334155) !important;
+    color: var(--body-text-color, #f1f5f9) !important;
+    padding: 6px 28px 6px 12px !important;
+    border-radius: 6px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    outline: none !important;
+    height: 34px !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+    transition: border-color 0.15s ease !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f1f5f9' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 8px center !important;
+    background-size: 14px !important;
+}
+
+.models-info-filter:hover {
+    border-color: var(--border-color-hover, #475569) !important;
+}
+
+/* --- Header Scan Button --- */
+.models-info-scan-btn {
+    background: var(--button-secondary-background-fill, #1e293b) !important;
+    border: 1px solid var(--border-color-primary, #334155) !important;
+    color: var(--button-secondary-text-color, #f1f5f9) !important;
+    padding: 6px 16px !important;
+    border-radius: 6px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    height: 34px !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+    transition: all 0.15s ease !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.models-info-scan-btn:hover {
+    background: var(--button-secondary-background-fill-hover, #334155) !important;
+    border-color: var(--border-color-hover, #475569) !important;
+}
+
+/* --- Header Favorites Filter Button --- */
+.models-info-fav-filter-btn {
+    background: var(--button-secondary-background-fill, #1e293b) !important;
+    border: 1px solid var(--border-color-primary, #334155) !important;
+    color: var(--button-secondary-text-color, #f1f5f9) !important;
+    padding: 6px 14px !important;
+    border-radius: 6px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    height: 34px !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+    transition: all 0.15s ease !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px;
+}
+
+.models-info-fav-filter-btn:hover {
+    background: var(--button-secondary-background-fill-hover, #334155) !important;
+    border-color: var(--border-color-hover, #475569) !important;
+}
+
+.models-info-fav-filter-btn.active {
+    background: rgba(234, 179, 8, 0.2) !important;
+    border-color: #eab308 !important;
+    color: #fef08a !important;
+    box-shadow: 0 0 10px rgba(234, 179, 8, 0.3) !important;
+}
+
+/* --- Inline Progress Indicator --- */
+.models-info-inline-progress {
+    display: inline-flex;
+    align-items: center;
+    background: var(--block-background-fill, #0f172a);
+    border: 1px solid var(--border-color-primary, #334155);
+    height: 20px;
+    width: 90px;
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.models-info-inline-progress-fill {
+    background: linear-gradient(90deg, #38bdf8 0%, #2563eb 100%);
+    height: 100%;
+    width: 0%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 6px rgba(37, 99, 235, 0.5);
+}
+
+.models-info-inline-progress-text {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    z-index: 10;
+    color: #ffffff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    line-height: 18px;
+}
+
+/* --- Proportional Card Size Increase (Defaults to 280x420, respects opt-out) --- */
+body:not(.models-info-natural-size) .extra-network-pane .card.models-info-custom-card,
+body:not(.models-info-natural-size) .standalone-card-preview.card.models-info-custom-card {
+    width: 280px !important;
+    height: 420px !important;
+}
+
+/* --- Models Info Base Model Filter Rule --- */
+.card.models-info-filtered-out {
+    display: none !important;
+}
+
+/* Ensure the card preview image fits the new dimensions perfectly */
+.card.models-info-custom-card > img {
+    height: 100% !important;
+    width: 100% !important;
+    object-fit: cover !important;
+}
+
+/* --- Premium Modal Overlay Backdrop --- */
+.models-info-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.6) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+    z-index: 99999 !important;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+.models-info-modal-backdrop.show {
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* --- Premium Modal Content Box --- */
+.models-info-modal {
+    background: var(--body-background-fill, #0b0f19) !important;
+    border: 1px solid var(--border-color-primary, #1e293b) !important;
+    border-radius: 12px !important;
+    width: 420px !important;
+    max-width: 90% !important;
+    padding: 24px !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+    transform: scale(0.9) !important;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    color: var(--body-text-color, #f1f5f9) !important;
+    box-sizing: border-box !important;
+}
+.models-info-modal-backdrop.show .models-info-modal {
+    transform: scale(1) !important;
+}
+
+/* --- Form Fields & Labels --- */
+.models-info-modal h3 {
+    margin-top: 0 !important;
+    margin-bottom: 20px !important;
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    padding-bottom: 12px !important;
+    color: var(--body-text-color, #f1f5f9) !important;
+}
+.models-info-modal-group {
+    margin-bottom: 16px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    text-align: left !important;
+}
+.models-info-modal-group label {
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+.models-info-modal input[type="text"],
+.models-info-modal select {
+    background: var(--input-background-fill, #1e293b) !important;
+    border: 1px solid var(--border-color-primary, #334155) !important;
+    color: var(--body-text-color, #f1f5f9) !important;
+    padding: 8px 12px !important;
+    border-radius: 6px !important;
+    font-size: 14px !important;
+    outline: none !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+.models-info-modal input[type="text"]:focus,
+.models-info-modal select:focus {
+    border-color: var(--primary-500, #3b82f6) !important;
+}
+
+/* --- Footer Action Buttons --- */
+.models-info-modal-actions {
+    display: flex !important;
+    justify-content: flex-end !important;
+    gap: 10px !important;
+    margin-top: 24px !important;
+}
+.models-info-modal-btn-save {
+    background: #2563eb !important;
+    color: #ffffff !important;
+    border: none !important;
+    padding: 8px 18px !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    cursor: pointer !important;
+    transition: background 0.15s ease !important;
+}
+.models-info-modal-btn-save:hover {
+    background: #1d4ed8 !important;
+}
+.models-info-modal-btn-cancel {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: var(--body-text-color, #f1f5f9) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    padding: 8px 18px !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+}
+.models-info-modal-btn-cancel:hover {
+    background: rgba(255, 255, 255, 0.15) !important;
+}
