@@ -1,64 +1,58 @@
 # Models Info Extension for SD WebUI
 
-A high-performance metadata downloader, preview image manager, and model organizer for Stable Diffusion Checkpoints and LoRAs. Seamlessly integrated into the SD WebUI Forge (Neo) Extra Networks cards interface.
+A metadata downloader, preview image manager, and model organizer for Stable Diffusion Checkpoints and LoRAs. Seamlessly integrated into the SD WebUI and WebUI Forge Extra Networks cards interface.
 
 ---
 
-## ✨ Features
+## Features
 
 ### 🔍 Metadata & Preview Downloads
-- Queries online databases by file hash (SHA-256) to retrieve base model architecture, version names, trigger words, descriptions, and source links.
-- Downloads official preview images and saves them locally alongside your models.
-- Automatically optimizes preview images at your chosen resolution to conserve disk space.
+- **Hash-Based Lookup**: Identifies models via SHA-256 or Quick Hash (AutoV1) against Civitai and Arcenciel databases.
+- **Preview Retrieval**: Downloads and optimizes preview images locally alongside models (configurable to 256px, 512px, 1024px, 2048px, or original resolution).
+- **Architecture Refinement**: Inspects file headers to identify architectures (e.g., SD 1.5, SDXL, Flux, Pony, Illustrious, NoobAI, SD 3.5, Anima, Hunyuan).
+- **Trigger Word Insertion**: Injects trigger words into model prompts with a single click.
 
-### 🏷️ Dynamic Architecture & ⭐ Favorites Filtering
-- **Base Model Filter**: Instant client-side dropdown filtering by architecture (e.g. *SD 1.5, SDXL, Flux, Pony, Illustrious, NoobAI, SD 3.5, Hunyuan*). Unmatched assets are neatly grouped under *Unknown*.
-- **⭐ Favorites Only Toggle**: Filter your library down to your starred models with a single click.
-- **Composable Filtering**: Combine filters together effortlessly (e.g. view only *SDXL + Favorites*).
+### 🏷️ Filtering & Organization
+- **Base Model Filter**: Dropdown filtering by architecture inside Extra Networks.
+- **Favorites**: Star models to filter by favorite status.
+- **LoRA Categorization**: Automatically organizes LoRAs into subfolders (`Character`, `Style`, `Clothing`, `Concept`, `Pose`, `Background`, `Utility`) based on tags.
+- **Auto-Renaming**: Sanitizes and standardizes model filenames (e.g., `Model_Version`) with duplicate collision handling (`- Duplicate N`).
 
-### 🗂️ Automatic LoRA Subfolder Organization
-- Analyzes model tags using exact word-boundary matching and automatically organizes LoRAs into thematic subfolders:
-  - **Character**: Fictional characters, celebrities, or figures.
-  - **Style**: Art styles, painterly aesthetics, or visual filters.
-  - **Clothing**: Outfits, costumes, or fashion accessories.
-  - **Concept**: Abstract concepts, objects, or specific themes.
-  - **Pose**: Action stances, dynamic angles, or body positions.
-  - **Background**: Landscapes, scenery, or environment art.
-  - **Utility**: Helpers, enhancers, and noise offsets.
-
-### ⚡ Blazing-Fast & Drive-Aware
-- **In-Memory Caching**: Sidecar metadata is cached in RAM with file modification time validation, eliminating disk lag and keeping Extra Networks fast.
-- **Multi-Directory & External Drive Support**: Fully supports custom and external directories (`--ckpt-dir`, `--lora-dir`).
-- **Safe Operations**: Renaming handles Windows case-only changes safely, and deletions send files to the OS Recycle Bin.
+### 🎛️ Card Actions
+Hover over any model card in Extra Networks to access the action bar:
+- **⭐ Favorite**: Toggle favorite status.
+- **🌐 Open Source Page**: Open the model's external page (Civitai / Arcenciel) in a new tab.
+- **🏷️ Inject Trigger Words**: Append trained trigger words directly into the active prompt textarea.
+- **⚙️ Edit Metadata**: Open the edit modal to modify display name (card title), base model architecture, version, trigger words, external URL, or upload/select a local preview image.
+- **✏️ Rename Model**: Rename the model file along with all associated sidecar files (`.metadata`, previews).
+- **🗑️ Delete Model**: Permanently send the model file and associated sidecars to the OS Recycle Bin.
 
 ---
 
-## 🌐 Supported APIs
+## Supported APIs
 
 | Platform | Authentication | Capabilities |
 | :--- | :--- | :--- |
 | **Civitai** | Optional (API key optional for public models) | Hash lookup, tags, trigger words, versions, previews |
 | **Arcenciel** | Required (API key required) | Hash lookup, version preview media, tags, trigger words |
 
-Both services are queried with automatic fallback if a model is only hosted on one platform.
+Both platforms support automatic fallback when a model is missing from one service.
 
 ---
 
-## ⚙️ Configuration & Settings
+## Configuration & Settings
 
-Go to **Settings ➔ Models Info** in the WebUI to customize settings:
+Configure via **Settings ➔ Models Info** in the WebUI:
 
 - **Civitai API Key**: Optional authentication key for Civitai early-access or private models.
 - **Arcenciel API Key**: Authentication key for Arcenciel lookups.
-- **Primary Metadata Source**: Choose which platform is queried first before falling back to the other.
-- **Preview Image Width**: Select downscale resolution (256px, 512px, 1024px, 2048px, or original) to keep page loading snappy.
-- **Auto-sort LoRA into subfolders**: Automatically routes newly downloaded LoRAs into category folders.
-- **Maximum NSFW level**: Controls preview thumbnail safety filter:
-  - `None`: Allows only G-rated content.
-  - `Soft`: Hides explicit or adult previews.
-  - `Mature`: Hides extreme content only.
-  - `X`: Allows all preview content.
-- **Max concurrent API requests**: Controls parallel request concurrency to respect platform rate limits.
-- **Enforce uniform card dimensions**: Keeps cards at a clean, consistent aspect ratio.
-
----
+- **Primary Metadata Source**: Select initial platform to query before fallback.
+- **Preview Image Width**: Select thumbnail resolution (256, 512, 1024, 2048, or original).
+- **Auto-sort LoRA into category subfolders**: Move newly scanned LoRAs into category folders.
+- **Maximum NSFW level for preview images**: Filter previews (`None`, `Soft`, `Mature`, `X`).
+- **Max concurrent API requests**: Throttle parallel downloads (1–10).
+- **Enforce Custom Card Dimensions**: Maintain standard 280x420 aspect ratio cards.
+- **Hash Algorithm**: Choose between SHA256 (full file) or AutoV1 / Quick Hash (fast Civitai lookup).
+- **Auto-rename model files**: Standardize filenames according to selected format (`Model_Version`, `Model - Version`, `Original Civitai Filename`, `Model Only`).
+- **Duplicate Handling Policy**: Choose between auto-numbering (`- Duplicate N`) or skipping renaming on conflict.
+- **Also rename already-cached models on rescan**: Apply auto-renaming rules across previously cached models.

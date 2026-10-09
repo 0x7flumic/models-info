@@ -15,8 +15,10 @@ from .arch_inspector import detect_architecture
 from .config import (
     KEY_PRIMARY_SOURCE, KEY_CONCURRENT_REQUESTS, KEY_NSFW_FILTER,
     KEY_PREVIEW_WIDTH, KEY_AUTO_SORT_LORA, KEY_HASH_ALGO,
+    KEY_AUTO_RENAME, KEY_RENAME_FORMAT, KEY_DUPLICATE_ACTION, KEY_RENAME_CACHED,
     DEFAULT_PRIMARY_SOURCE, DEFAULT_CONCURRENT_REQUESTS, DEFAULT_NSFW_FILTER,
-    DEFAULT_PREVIEW_WIDTH, DEFAULT_HASH_ALGO
+    DEFAULT_PREVIEW_WIDTH, DEFAULT_HASH_ALGO,
+    DEFAULT_AUTO_RENAME, DEFAULT_RENAME_FORMAT, DEFAULT_DUPLICATE_ACTION, DEFAULT_RENAME_CACHED
 )
 
 logger = logging.getLogger("models-info")
@@ -202,6 +204,16 @@ class ScannerOrchestrator:
         max_concurrent = DEFAULT_CONCURRENT_REQUESTS
         if shared is not None and hasattr(shared, 'opts') and shared.opts is not None:
             max_concurrent = int(shared.opts.data.get(KEY_CONCURRENT_REQUESTS, DEFAULT_CONCURRENT_REQUESTS))
+
+        auto_rename = DEFAULT_AUTO_RENAME
+        rename_format = DEFAULT_RENAME_FORMAT
+        duplicate_action = DEFAULT_DUPLICATE_ACTION
+        rename_cached = DEFAULT_RENAME_CACHED
+        if shared is not None and hasattr(shared, 'opts') and shared.opts is not None:
+            auto_rename = bool(shared.opts.data.get(KEY_AUTO_RENAME, DEFAULT_AUTO_RENAME))
+            rename_format = shared.opts.data.get(KEY_RENAME_FORMAT, DEFAULT_RENAME_FORMAT)
+            duplicate_action = shared.opts.data.get(KEY_DUPLICATE_ACTION, DEFAULT_DUPLICATE_ACTION)
+            rename_cached = bool(shared.opts.data.get(KEY_RENAME_CACHED, DEFAULT_RENAME_CACHED))
             
         semaphore = asyncio.Semaphore(max_concurrent)
         hash_semaphore = asyncio.Semaphore(1)
@@ -231,23 +243,68 @@ class ScannerOrchestrator:
                     # Deterministically refine baseModel parameter architecture if needed
                     current_base = existing.get("baseModel", "")
                     refined_base = detect_architecture(filepath, current_base)
+                    need_write = False
                     if refined_base and refined_base != current_base:
                         existing["baseModel"] = refined_base
-                        self.metadata_mgr.write(filepath, existing)
+                        need_write = True
                         logger.debug(f"Refined baseModel for cached model '{filename}': {current_base} -> {refined_base}")
+
+                    if not existing.get("displayName") and (existing.get("name") or existing.get("versionName")):
+                        existing["displayName"] = self.file_ops.generate_display_name(
+                            existing.get("name", ""), existing.get("versionName", "")
+                        )
+                        need_write = True
+
+                    if need_write:
+                        self.metadata_mgr.write(filepath, existing)
 
                     async with completed_lock:
                         completed_count += 1
                         logger.debug(f"[{completed_count}/{total}] Cached: '{filename}' ({existing.get('baseModel', 'Unknown')})")
                         progress_callback(completed_count, total, f"Cached: {filename}")
+
+                    # If auto_rename and rename_cached are enabled, check if rename is needed
+                    cached_final_filepath = filepath
+                    if auto_rename and rename_cached:
+                        c_model_name = existing.get("name", "")
+                        c_version_name = existing.get("versionName", "")
+                        c_orig_name = (existing.get("file_metadata") or {}).get("name", "")
+                        _, c_ext = os.path.splitext(filepath)
+                        c_target = self.file_ops.generate_model_filename(
+                            c_model_name, c_version_name, c_orig_name, c_ext, rename_format
+                        )
+                        if c_target != os.path.basename(filepath):
+                            loop = asyncio.get_running_loop()
+                            try:
+                                renamed_cached = await loop.run_in_executor(
+                                    None,
+                                    self.file_ops.rename_model,
+                                    filepath,
+                                    c_target,
+                                    True,
+                                    duplicate_action,
+                                    existing.get("sha256"),
+                                    self.hash_engine
+                                )
+                                if renamed_cached != filepath:
+                                    try:
+                                        from scripts.models_info import invalidate_metadata_cache
+                                        invalidate_metadata_cache(filepath)
+                                        invalidate_metadata_cache(renamed_cached)
+                                    except Exception:
+                                        pass
+                                    cached_final_filepath = renamed_cached
+                                    filename = os.path.basename(cached_final_filepath)
+                            except Exception as e:
+                                logger.error(f"Failed to auto-rename cached model '{filename}': {e}")
                     
                     # Run category-based LoRA sorting logic even if cached
-                    final_filepath = filepath
+                    final_filepath = cached_final_filepath
                     if model_type == "LoRA":
-                        root_dir = get_model_root(filepath)
+                        root_dir = get_model_root(cached_final_filepath)
                         loop = asyncio.get_running_loop()
                         final_filepath = await loop.run_in_executor(
-                            None, self._run_sorting_logic, filepath, model_type, existing, root_dir
+                            None, self._run_sorting_logic, cached_final_filepath, model_type, existing, root_dir
                         )
                         
                     return ScanResult(final_filepath, os.path.basename(final_filepath), "cached",
@@ -328,10 +385,44 @@ class ScannerOrchestrator:
             if refined_base:
                 metadata.base_model = refined_base
 
+            # Auto-rename model if enabled
+            if auto_rename:
+                orig_file_name = (metadata.file_metadata or {}).get("name", "")
+                _, current_ext = os.path.splitext(filepath)
+                target_filename = self.file_ops.generate_model_filename(
+                    metadata.name, metadata.version_name, orig_file_name, current_ext, rename_format
+                )
+                if target_filename != filename:
+                    loop = asyncio.get_running_loop()
+                    try:
+                        new_fp = await loop.run_in_executor(
+                            None,
+                            self.file_ops.rename_model,
+                            filepath,
+                            target_filename,
+                            True,
+                            duplicate_action,
+                            sidecar_sha256,
+                            self.hash_engine
+                        )
+                        if new_fp != filepath:
+                            try:
+                                from scripts.models_info import invalidate_metadata_cache
+                                invalidate_metadata_cache(filepath)
+                                invalidate_metadata_cache(new_fp)
+                            except Exception:
+                                pass
+                            filepath = new_fp
+                            filename = os.path.basename(filepath)
+                    except Exception as e:
+                        logger.error(f"Auto-rename failed for '{filename}': {e}")
+
             # Step 5: Download preview image (static format only)
             preview_path = await self._download_preview(
                 filepath, metadata.preview_images, api_client=api_client
             )
+
+            display_name = self.file_ops.generate_display_name(metadata.name, metadata.version_name)
 
             sidecar_data = {
                 "schema_version": 1,
@@ -343,6 +434,7 @@ class ScannerOrchestrator:
                 "version_id": metadata.version_id,
                 "versionName": metadata.version_name,
                 "name": metadata.name,
+                "displayName": display_name,
                 "baseModel": metadata.base_model,
                 "type": metadata.model_type,
                 "tags": metadata.tags,
@@ -400,8 +492,13 @@ class ScannerOrchestrator:
         if api_client is None:
             api_client = self.api_client
 
-        from PIL import Image
         if not preview_images:
+            return None
+
+        try:
+            from PIL import Image
+        except ImportError:
+            logger.warning("PIL (Pillow) is not installed; skipping preview image download.")
             return None
 
         # Filter out animated formats and NSFW if configured

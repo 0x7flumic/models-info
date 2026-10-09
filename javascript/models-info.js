@@ -6,6 +6,7 @@
     };
 
     let modalBackdrop = null;
+    let displayNameInput = null;
     let baseModelDropdown = null;
     let baseModelCustomInput = null;
     let versionInput = null;
@@ -13,6 +14,7 @@
     let triggersInput = null;
     let urlInput = null;
     let currentModelFilepath = null;
+    let currentModelMeta = null;
 
     let selectedFileObject = null;
 
@@ -24,6 +26,10 @@
         modalBackdrop.innerHTML = `
             <div class="models-info-modal">
                 <h3>⚙️ Edit Model Metadata</h3>
+                <div class="models-info-modal-group">
+                    <label for="models-info-edit-display-name">Display Name (Card Title)</label>
+                    <input type="text" id="models-info-edit-display-name" placeholder="Custom card title (leave empty for default)...">
+                </div>
                 <div class="models-info-modal-group">
                     <label for="models-info-edit-base">Base Model</label>
                     <select id="models-info-edit-base">
@@ -62,6 +68,7 @@
         `;
         gradioApp().appendChild(modalBackdrop);
 
+        displayNameInput = modalBackdrop.querySelector('#models-info-edit-display-name');
         baseModelDropdown = modalBackdrop.querySelector('#models-info-edit-base');
         baseModelCustomInput = modalBackdrop.querySelector('#models-info-edit-base-custom');
         versionInput = modalBackdrop.querySelector('#models-info-edit-version');
@@ -141,15 +148,21 @@
         }
     }
 
-    function openMetadataModal(filepath, meta) {
+    async function openMetadataModal(filepath, meta) {
         ensureModalInjected();
         currentModelFilepath = filepath;
 
-        const currentBase = meta?.baseModel || 'Unknown';
-        const currentVersion = meta?.versionName || 'Unknown';
-        const currentTriggers = (meta?.trainedWords || []).join(', ');
-        const currentUrl = meta?.externalUrl || '';
+        const cardName = filepath ? filepath.split(/[\\/]/).pop() : '';
+        const freshMeta = findModelMetadata(cardName, filepath) || meta || {};
+        currentModelMeta = freshMeta;
 
+        const currentDisplay = freshMeta.displayName || freshMeta.name || freshMeta.modelName || getDisplayModelName(cardName, freshMeta) || '';
+        const currentBase = freshMeta.baseModel || 'Unknown';
+        const currentVersion = freshMeta.versionName || 'Unknown';
+        const currentTriggers = (freshMeta.trainedWords || []).join(', ');
+        const currentUrl = freshMeta.externalUrl || '';
+
+        displayNameInput.value = currentDisplay;
         baseModelCustomInput.value = '';
         versionInput.value = (currentVersion === 'Unknown') ? '' : currentVersion;
         previewInput.value = '';
@@ -177,6 +190,46 @@
         }
 
         modalBackdrop.classList.add('show');
+
+        // Fetch live sidecar data directly from disk to guarantee freshest values
+        try {
+            const resp = await fetch(`/models-info/api/model-metadata?filepath=${encodeURIComponent(filepath)}`);
+            if (resp.ok) {
+                const liveData = await resp.json();
+                if (liveData && Object.keys(liveData).length > 0) {
+                    currentModelMeta = Object.assign(freshMeta, liveData);
+                    const liveDisplay = liveData.displayName || liveData.name || liveData.modelName || getDisplayModelName(cardName, liveData) || '';
+                    if (liveDisplay) {
+                        displayNameInput.value = liveDisplay;
+                    }
+                    if (liveData.baseModel && liveData.baseModel !== 'Unknown') {
+                        let f = false;
+                        Array.from(baseModelDropdown.options).forEach(opt => {
+                            if (opt.value === liveData.baseModel) {
+                                baseModelDropdown.value = liveData.baseModel;
+                                f = true;
+                            }
+                        });
+                        if (!f) {
+                            baseModelDropdown.value = 'Other';
+                            baseModelCustomInput.value = liveData.baseModel;
+                            baseModelCustomInput.disabled = false;
+                        }
+                    }
+                    if (liveData.versionName && liveData.versionName !== 'Unknown') {
+                        versionInput.value = liveData.versionName;
+                    }
+                    if (liveData.trainedWords && liveData.trainedWords.length > 0) {
+                        triggersInput.value = liveData.trainedWords.join(', ');
+                    }
+                    if (liveData.externalUrl) {
+                        urlInput.value = liveData.externalUrl;
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('[models-info] Error fetching live model metadata:', e);
+        }
     }
 
     function closeMetadataModal() {
@@ -198,6 +251,7 @@
         try {
             const formData = new FormData();
             formData.append('filepath', currentModelFilepath);
+            formData.append('display_name', displayNameInput.value.trim());
             formData.append('base_model', baseVal);
             formData.append('version_name', versionInput.value.trim() || 'Unknown');
             formData.append('trained_words', triggersInput.value.trim());
@@ -216,6 +270,9 @@
 
             const result = await response.json();
             if (response.ok && result.status === 'success') {
+                if (currentModelMeta) {
+                    currentModelMeta.displayName = displayNameInput.value.trim();
+                }
                 closeMetadataModal();                
                 await triggerWebUIRefreshAndSync();
             } else {
@@ -426,7 +483,7 @@
         const cards = tabContainer.querySelectorAll('.card');
         cards.forEach(card => {
             const nameSpan = card.querySelector('.name');
-            const cardName = nameSpan?.textContent?.trim() || card.dataset?.name || "";
+            const cardName = card.dataset?.originalName || nameSpan?.textContent?.trim() || card.dataset?.name || "";
             const filepath = card.querySelector('.copy-path-button')?.getAttribute('data-clipboard-text') || card.dataset?.path || cardName;
             
             const meta = findModelMetadata(cardName, filepath);
@@ -633,13 +690,55 @@
         return id.includes('checkpoints') || id.includes('lora');
     }
 
+    // Strip version suffix from card name to display clean model name (e.g. "Cyber Realistic_V4.2" -> "Cyber Realistic")
+    function getDisplayModelName(cardName, meta) {
+        if (!cardName) return "";
+
+        // 0. Custom Display Name override
+        if (meta && meta.displayName && String(meta.displayName).trim() !== '') {
+            return String(meta.displayName).trim();
+        }
+
+        let clean = cardName.replace(/\.(safetensors|ckpt|pt|bin)$/i, '').trim();
+
+        // 1. If metadata has versionName, attempt exact or sanitized match stripping
+        if (meta && meta.versionName && meta.versionName !== 'Unknown') {
+            const vNames = [meta.versionName.trim()];
+            const sanitizedV = meta.versionName.replace(/[^a-zA-Z0-9\s._-]/g, '').trim();
+            if (sanitizedV && sanitizedV !== vNames[0]) {
+                vNames.push(sanitizedV);
+            }
+
+            for (const vn of vNames) {
+                const escV = vn.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[\s_]+/g, '[\\s_]+');
+                const vRegex = new RegExp('([_\\-\\s])' + escV + '(\\s*-\\s*Duplicate\\s*\\d+)?$', 'i');
+                if (vRegex.test(clean)) {
+                    return clean.replace(vRegex, (match, sep, dup) => (dup ? (' ' + dup.trim()) : '')).trim();
+                }
+            }
+        }
+
+        // 2. Generic fallback for version patterns like _V4.2, _v1.0, _1.5, etc.
+        clean = clean.replace(/([_\\-\\s])([vV]?\d+[\w.-]*)(\s*-\\s*Duplicate\\s*\\d+)?$/i, (match, sep, ver, dup) => {
+            return dup ? (' ' + dup.trim()) : '';
+        }).trim();
+
+        return clean;
+    }
+
     // Inject base model badge and direct horizontal actions row above the model name banner
     function customizeCard(card, cardName, filepath) {
         if (!isCardInCheckpointOrLora(card)) return;
 
+        const nameSpan = card.querySelector('.name');
+        if (nameSpan && !card.dataset.originalName) {
+            card.dataset.originalName = nameSpan.textContent.trim() || cardName;
+        }
+
         card.classList.add('models-info-custom-card');
 
-        let meta = findModelMetadata(cardName, filepath);
+        const lookupName = card.dataset.originalName || cardName;
+        let meta = findModelMetadata(lookupName, filepath);
         if (!meta) {
             meta = {
                 baseModel: "Unknown",
@@ -657,15 +756,25 @@
             }
         }
 
-        // 3. Inject Version Badge (beneath the name element inside card banner)
-        const nameSpan = card.querySelector('.name');
+        // 3. Inject Version Badge & Update Card Display Name (without version)
+        if (nameSpan) {
+            const displayName = getDisplayModelName(card.dataset.originalName || cardName, meta);
+            if (displayName && nameSpan.textContent !== displayName) {
+                nameSpan.textContent = displayName;
+                nameSpan.title = card.dataset.originalName || cardName;
+            }
+        }
+
         if (meta.versionName && nameSpan) {
             let actionsContainer = nameSpan.parentElement;
-            if (actionsContainer && !actionsContainer.querySelector('.models-info-version-badge')) {
-                const versionBadge = document.createElement('div');
-                versionBadge.className = 'models-info-version-badge';
+            if (actionsContainer) {
+                let versionBadge = actionsContainer.querySelector('.models-info-version-badge');
+                if (!versionBadge) {
+                    versionBadge = document.createElement('div');
+                    versionBadge.className = 'models-info-version-badge';
+                    nameSpan.after(versionBadge);
+                }
                 versionBadge.textContent = meta.versionName;
-                nameSpan.after(versionBadge);
             }
         }
 
@@ -810,7 +919,8 @@
             editBtn.title = 'Edit Metadata & Preview';
             editBtn.onclick = (e) => {
                 e.stopPropagation();
-                openMetadataModal(filepath, meta);
+                const fresh = findModelMetadata(card.dataset?.originalName || cardName, filepath);
+                openMetadataModal(filepath, fresh || meta);
             };
             actionsRow.appendChild(editBtn);
 
@@ -821,7 +931,7 @@
             renameBtn.title = 'Rename Model';
             renameBtn.onclick = (e) => {
                 e.stopPropagation();
-                renameModel(filepath, cardName);
+                renameModel(filepath, card.dataset?.originalName || cardName);
             };
             actionsRow.appendChild(renameBtn);
 
@@ -832,7 +942,7 @@
             deleteBtn.title = 'Permanently Delete Model';
             deleteBtn.onclick = (e) => {
                 e.stopPropagation();
-                deleteModel(filepath, cardName);
+                deleteModel(filepath, card.dataset?.originalName || cardName);
             };
             actionsRow.appendChild(deleteBtn);
 
@@ -872,7 +982,7 @@
             const cards = container.querySelectorAll('.card');
             cards.forEach(card => {
                 const nameSpan = card.querySelector('.name');
-                const cardName = nameSpan?.textContent?.trim() || card.dataset?.name || "";
+                const cardName = card.dataset?.originalName || nameSpan?.textContent?.trim() || card.dataset?.name || "";
                 const filepath = card.querySelector('.copy-path-button')?.getAttribute('data-clipboard-text') || card.dataset?.path || cardName;
                 
                 if (cardName) {

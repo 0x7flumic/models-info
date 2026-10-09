@@ -20,8 +20,10 @@ from scripts.models_info_helpers.config import (
     KEY_CIVITAI_API_KEY, KEY_ARCENCIEL_API_KEY, KEY_PRIMARY_SOURCE,
     KEY_PREVIEW_WIDTH, KEY_AUTO_SORT_LORA,
     KEY_NSFW_FILTER, KEY_CONCURRENT_REQUESTS, KEY_ADDITIONAL_PATHS, KEY_ENFORCE_CARD_SIZE, KEY_HASH_ALGO,
+    KEY_AUTO_RENAME, KEY_RENAME_FORMAT, KEY_DUPLICATE_ACTION, KEY_RENAME_CACHED,
     DEFAULT_PREVIEW_WIDTH, DEFAULT_CONCURRENT_REQUESTS,
-    DEFAULT_PRIMARY_SOURCE, DEFAULT_NSFW_FILTER, DEFAULT_ENFORCE_CARD_SIZE, DEFAULT_HASH_ALGO
+    DEFAULT_PRIMARY_SOURCE, DEFAULT_NSFW_FILTER, DEFAULT_ENFORCE_CARD_SIZE, DEFAULT_HASH_ALGO,
+    DEFAULT_AUTO_RENAME, DEFAULT_RENAME_FORMAT, DEFAULT_DUPLICATE_ACTION, DEFAULT_RENAME_CACHED
 )
 from scripts.models_info_helpers.hash_engine import HashEngine
 from scripts.models_info_helpers.api_client import ApiClient, ServiceName
@@ -344,8 +346,32 @@ def on_ui_settings():
             ]},
             section=section
         ))
-
-# Note: on_ui_tabs has been completely removed to avoid adding a top-level tab.
+        shared.opts.add_option(KEY_AUTO_RENAME, shared.OptionInfo(
+            DEFAULT_AUTO_RENAME, "Auto-rename model files to Civitai/Arcenciel names",
+            section=section
+        ))
+        shared.opts.add_option(KEY_RENAME_FORMAT, shared.OptionInfo(
+            DEFAULT_RENAME_FORMAT, "Rename Format",
+            gr.Dropdown, {"choices": [
+                "Model_Version",
+                "Model - Version",
+                "Original Civitai Filename",
+                "Model Only"
+            ]},
+            section=section
+        ))
+        shared.opts.add_option(KEY_DUPLICATE_ACTION, shared.OptionInfo(
+            DEFAULT_DUPLICATE_ACTION, "Duplicate Handling Policy",
+            gr.Dropdown, {"choices": [
+                "Auto-number (e.g. model - Duplicate 1.safetensors)",
+                "Skip renaming on conflict"
+            ]},
+            section=section
+        ))
+        shared.opts.add_option(KEY_RENAME_CACHED, shared.OptionInfo(
+            DEFAULT_RENAME_CACHED, "Also rename already-cached models on rescan",
+            section=section
+        ))
 
 # ----------------- FastAPI Integration -----------------
 
@@ -571,6 +597,13 @@ def register_api(demo: Optional[Any], app: FastAPI):
                                     pass
 
                             if sidecar_data:
+                                if "displayName" not in sidecar_data or not sidecar_data["displayName"]:
+                                    m_name = sidecar_data.get("name", "")
+                                    v_name = sidecar_data.get("versionName", "")
+                                    if m_name or v_name:
+                                        from scripts.models_info_helpers.file_ops import generate_display_name
+                                        sidecar_data["displayName"] = generate_display_name(m_name, v_name)
+
                                 normalized_path = model_path.replace("\\", "/")
                                 stem, _ = os.path.splitext(f)
 
@@ -636,12 +669,28 @@ def register_api(demo: Optional[Any], app: FastAPI):
         ]
         return {"base_models": base_models}
 
+    @router.get("/model-metadata")
+    async def api_model_metadata(filepath: str):
+        if not filepath:
+            raise HTTPException(status_code=400, detail="Missing filepath")
+        if not is_safe_filepath(filepath):
+            raise HTTPException(status_code=403, detail="Access denied: Path traversal attempt blocked")
+        data = metadata_mgr.read(filepath) or {}
+        if "displayName" not in data or not data["displayName"]:
+            m_name = data.get("name", "")
+            v_name = data.get("versionName", "")
+            if m_name or v_name:
+                from scripts.models_info_helpers.file_ops import generate_display_name
+                data["displayName"] = generate_display_name(m_name, v_name)
+        return data
+
     @router.post("/edit-metadata")
     def api_edit_metadata(
         request: Request,
         filepath: str = Form(...),
         base_model: str = Form(...),
         version_name: str = Form(...),
+        display_name: Optional[str] = Form(None),
         preview_local_path: Optional[str] = Form(None),
         preview_file: Optional[UploadFile] = File(None),
         trained_words: Optional[str] = Form(None),
@@ -676,6 +725,13 @@ def register_api(demo: Optional[Any], app: FastAPI):
         raw_data["baseModel"] = sanitize_base_model(base_model)
         raw_data["versionName"] = version_name
         
+        if display_name is not None:
+            clean_display_name = display_name.strip()
+            if clean_display_name:
+                raw_data["displayName"] = clean_display_name
+            else:
+                raw_data.pop("displayName", None)
+
         if trained_words is not None:
             raw_data["trainedWords"] = words
         if external_url is not None:
@@ -775,5 +831,4 @@ def register_api(demo: Optional[Any], app: FastAPI):
 
 if script_callbacks is not None:
     script_callbacks.on_ui_settings(on_ui_settings)
-    # script_callbacks.on_ui_tabs has been removed.
     script_callbacks.on_app_started(register_api)
