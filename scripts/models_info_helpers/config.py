@@ -13,6 +13,7 @@ KEY_AUTO_RENAME = "models_info_auto_rename"
 KEY_RENAME_FORMAT = "models_info_rename_format"
 KEY_DUPLICATE_ACTION = "models_info_duplicate_action"
 KEY_RENAME_CACHED = "models_info_rename_cached"
+KEY_RESCAN_ALL = "models_info_rescan_all"
 
 DEFAULT_PREVIEW_WIDTH = "512"
 DEFAULT_CONCURRENT_REQUESTS = 3
@@ -24,6 +25,7 @@ DEFAULT_AUTO_RENAME = False
 DEFAULT_RENAME_FORMAT = "Model_Version"
 DEFAULT_DUPLICATE_ACTION = "Auto-number (e.g. model - Duplicate 1.safetensors)"
 DEFAULT_RENAME_CACHED = False
+DEFAULT_RESCAN_ALL = False
 
 # API Endpoints
 CIVITAI_BASE_URL = "https://civitai.com/api/v1"

@@ -56,3 +56,4 @@ Configure via **Settings ➔ Models Info** in the WebUI:
 - **Auto-rename model files**: Standardize filenames according to selected format (`Model_Version`, `Model - Version`, `Original Civitai Filename`, `Model Only`).
 - **Duplicate Handling Policy**: Choose between auto-numbering (`- Duplicate N`) or skipping renaming on conflict.
 - **Also rename already-cached models on rescan**: Apply auto-renaming rules across previously cached models.
+- **Rescan all models**: Re-fetch metadata and re-organize cached models (disabled by default so clicking Scan only scans new/missing models; hold Shift while clicking Scan for a one-time force rescan).

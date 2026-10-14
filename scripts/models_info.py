@@ -20,10 +20,10 @@ from scripts.models_info_helpers.config import (
     KEY_CIVITAI_API_KEY, KEY_ARCENCIEL_API_KEY, KEY_PRIMARY_SOURCE,
     KEY_PREVIEW_WIDTH, KEY_AUTO_SORT_LORA,
     KEY_NSFW_FILTER, KEY_CONCURRENT_REQUESTS, KEY_ADDITIONAL_PATHS, KEY_ENFORCE_CARD_SIZE, KEY_HASH_ALGO,
-    KEY_AUTO_RENAME, KEY_RENAME_FORMAT, KEY_DUPLICATE_ACTION, KEY_RENAME_CACHED,
+    KEY_AUTO_RENAME, KEY_RENAME_FORMAT, KEY_DUPLICATE_ACTION, KEY_RENAME_CACHED, KEY_RESCAN_ALL,
     DEFAULT_PREVIEW_WIDTH, DEFAULT_CONCURRENT_REQUESTS,
     DEFAULT_PRIMARY_SOURCE, DEFAULT_NSFW_FILTER, DEFAULT_ENFORCE_CARD_SIZE, DEFAULT_HASH_ALGO,
-    DEFAULT_AUTO_RENAME, DEFAULT_RENAME_FORMAT, DEFAULT_DUPLICATE_ACTION, DEFAULT_RENAME_CACHED
+    DEFAULT_AUTO_RENAME, DEFAULT_RENAME_FORMAT, DEFAULT_DUPLICATE_ACTION, DEFAULT_RENAME_CACHED, DEFAULT_RESCAN_ALL
 )
 from scripts.models_info_helpers.hash_engine import HashEngine
 from scripts.models_info_helpers.api_client import ApiClient, ServiceName
@@ -238,7 +238,7 @@ def resolve_model_directories(model_type: str) -> List[str]:
 
     return cleaned
 
-def handle_scan(model_type: str, scan_missing_only: bool = False):
+def handle_scan(model_type: str, scan_missing_only: Optional[bool] = None):
     """Trigger background scanning under strict functional isolation."""
     scanner = scanners.get(model_type)
     state = active_scan_states.get(model_type)
@@ -247,6 +247,12 @@ def handle_scan(model_type: str, scan_missing_only: bool = False):
         
     if scanner.is_running():
         return "A scan is already in progress for this type."
+
+    if scan_missing_only is None:
+        rescan_all = DEFAULT_RESCAN_ALL
+        if shared is not None and hasattr(shared, 'opts') and shared.opts is not None:
+            rescan_all = bool(shared.opts.data.get(KEY_RESCAN_ALL, DEFAULT_RESCAN_ALL))
+        scan_missing_only = not rescan_all
         
     directories = resolve_model_directories(model_type)
     for directory in directories:
@@ -372,6 +378,10 @@ def on_ui_settings():
             DEFAULT_RENAME_CACHED, "Also rename already-cached models on rescan",
             section=section
         ))
+        shared.opts.add_option(KEY_RESCAN_ALL, shared.OptionInfo(
+            DEFAULT_RESCAN_ALL, "Rescan all models (re-fetch metadata and re-organize cached models)",
+            section=section
+        ))
 
 # ----------------- FastAPI Integration -----------------
 
@@ -463,7 +473,7 @@ def register_api(demo: Optional[Any], app: FastAPI):
         if model_type not in active_scan_states:
             raise HTTPException(status_code=400, detail="Invalid model type. Must be Checkpoints or LoRA")
             
-        scan_missing_only = body.get("scan_missing_only", False)
+        scan_missing_only = body.get("scan_missing_only", None)
         status = handle_scan(model_type, scan_missing_only=scan_missing_only)
         return {"status": "started", "detail": status}
 
@@ -631,14 +641,17 @@ def register_api(demo: Optional[Any], app: FastAPI):
                                     pass
 
         enforce_card_size = DEFAULT_ENFORCE_CARD_SIZE
+        rescan_all = DEFAULT_RESCAN_ALL
         if shared is not None and hasattr(shared, 'opts') and shared.opts is not None:
             enforce_card_size = shared.opts.data.get(KEY_ENFORCE_CARD_SIZE, DEFAULT_ENFORCE_CARD_SIZE)
+            rescan_all = shared.opts.data.get(KEY_RESCAN_ALL, DEFAULT_RESCAN_ALL)
 
         return {
             "by_path": meta_by_path,
             "by_filename": meta_by_filename,
             "settings": {
-                "enforce_card_size": bool(enforce_card_size)
+                "enforce_card_size": bool(enforce_card_size),
+                "rescan_all": bool(rescan_all)
             }
         }
 

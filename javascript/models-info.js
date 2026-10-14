@@ -418,17 +418,35 @@
 
     // Helper: Trigger WebUI extra network refresh and synchronize filters
     async function triggerWebUIRefreshAndSync(filterSelector) {
-        const refreshBtns = gradioApp().querySelectorAll(filterSelector || '[id$="_extra_refresh_internal"]');
-        refreshBtns.forEach(btn => {
-            if (typeof btn.click === 'function') {
-                btn.click();
+        // Find refresh buttons across standard WebUI and WebUI Forge structures
+        const selectors = filterSelector ? [filterSelector] : [
+            '[id$="_extra_refresh_internal"]',
+            '[id$="_extra_refresh"]',
+            '.extra-network-refresh',
+            'button[id*="refresh"]'
+        ];
+        
+        let clicked = false;
+        for (const sel of selectors) {
+            const btns = gradioApp().querySelectorAll(sel);
+            if (btns && btns.length > 0) {
+                btns.forEach(btn => {
+                    if (typeof btn.click === 'function') {
+                        btn.click();
+                        clicked = true;
+                    }
+                });
+                if (filterSelector) break;
             }
-        });
+        }
+
         await refreshMetadata();
+        
+        // Staged re-processing to catch cards as Gradio regenerates them
         debouncedProcessAllGrids(100);
-        setTimeout(() => {
-            processAllGrids();
-        }, 500);
+        setTimeout(() => processAllGrids(), 350);
+        setTimeout(() => processAllGrids(), 800);
+        setTimeout(() => processAllGrids(), 1500);
     }
 
     // Dispatch rename model to backend
@@ -481,6 +499,14 @@
     // Apply local client-side card filtering based on the selected base model option and favorites toggle
     function applyLocalCardFilter(tabContainer, baseFilter, favoritesOnly = false) {
         const cards = tabContainer.querySelectorAll('.card');
+        const isAll = (!baseFilter || baseFilter === 'All');
+
+        // Fast-path: if no filters active, guarantee all cards are visible
+        if (isAll && !favoritesOnly) {
+            cards.forEach(card => card.classList.remove('models-info-filtered-out'));
+            return;
+        }
+
         cards.forEach(card => {
             const nameSpan = card.querySelector('.name');
             const cardName = card.dataset?.originalName || nameSpan?.textContent?.trim() || card.dataset?.name || "";
@@ -495,7 +521,7 @@
             }
 
             // 2. Base model filter check
-            if (!baseFilter || baseFilter === 'All') {
+            if (isAll) {
                 card.classList.remove('models-info-filtered-out');
                 return;
             }
@@ -546,7 +572,7 @@
                 <option value="All">All Base Models</option>
             </select>
             <button class="models-info-fav-filter-btn" title="Toggle Favorites Only">⭐ Favorites</button>
-            <button class="models-info-scan-btn">🔍 Scan</button>
+            <button class="models-info-scan-btn" title="Scan models (Shift+Click to force rescan all)">🔍 Scan</button>
             <div class="models-info-inline-progress" style="display: none;">
                 <div class="models-info-inline-progress-fill" style="width: 0%"></div>
                 <span class="models-info-inline-progress-text">0%</span>
@@ -579,11 +605,12 @@
             }
         });
 
-        // Bind scanning click
+        // Bind scanning click (supports Shift+Click for force rescan)
         const scanBtn = toolbar.querySelector('.models-info-scan-btn');
         scanBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            triggerTabScan(tabType, toolbar);
+            const forceAll = e.shiftKey === true;
+            triggerTabScan(tabType, toolbar, forceAll);
         });
 
         // Insert toolbar before the native Search input field
@@ -598,13 +625,20 @@
     }
 
     // Dispatch background scan or cancel
-    async function triggerTabScan(tabType, toolbarEl) {
+    async function triggerTabScan(tabType, toolbarEl, forceAll = false) {
         const isRunning = toolbarEl.dataset.running === "true";
         const endpoint = isRunning ? '/models-info/api/cancel' : '/models-info/api/scan';
         
+        let scanMissingOnly = true;
+        if (forceAll) {
+            scanMissingOnly = false;
+        } else if (cachedMetadata && cachedMetadata.settings && cachedMetadata.settings.rescan_all === true) {
+            scanMissingOnly = false;
+        }
+
         const payload = isRunning ? { model_type: tabType } : {
             model_type: tabType,
-            scan_missing_only: false
+            scan_missing_only: scanMissingOnly
         };
 
         try {
@@ -679,7 +713,8 @@
         progressEl.style.display = 'none';
 
         const searchPattern = tabType.toLowerCase();
-        triggerWebUIRefreshAndSync(`[id*="${searchPattern}"][id*="refresh"]`);
+        // Reliable selector pattern for active tab refresh in WebUI & Forge
+        triggerWebUIRefreshAndSync(`[id*="${searchPattern}"][id*="refresh"], [id*="${searchPattern}"] .extra-network-refresh`);
     }
 
     // Check if a card is located inside the Checkpoints or LoRA tabs to restrict modification

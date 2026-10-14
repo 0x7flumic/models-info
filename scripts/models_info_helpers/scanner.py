@@ -263,7 +263,13 @@ class ScannerOrchestrator:
                         logger.debug(f"[{completed_count}/{total}] Cached: '{filename}' ({existing.get('baseModel', 'Unknown')})")
                         progress_callback(completed_count, total, f"Cached: {filename}")
 
-                    # If auto_rename and rename_cached are enabled, check if rename is needed
+                    # When scan_missing_only is active, bypass auto-rename and category sorting to leave existing models intact
+                    if scan_missing_only:
+                        return ScanResult(filepath, filename, "cached",
+                                          existing.get("source", ""), existing.get("baseModel", ""),
+                                          "Already has metadata")
+
+                    # If auto_rename and rename_cached are enabled, check if rename is needed (force rescan only)
                     cached_final_filepath = filepath
                     if auto_rename and rename_cached:
                         c_model_name = existing.get("name", "")
@@ -298,7 +304,7 @@ class ScannerOrchestrator:
                             except Exception as e:
                                 logger.error(f"Failed to auto-rename cached model '{filename}': {e}")
                     
-                    # Run category-based LoRA sorting logic even if cached
+                    # Run category-based LoRA sorting logic even if cached (force rescan only)
                     final_filepath = cached_final_filepath
                     if model_type == "LoRA":
                         root_dir = get_model_root(cached_final_filepath)
